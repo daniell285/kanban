@@ -1,3 +1,4 @@
+import { useDraggable } from "@dnd-kit/core";
 import { MoreHorizontal, Trash2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -8,17 +9,36 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { moveTask, deleteTask, type Task } from "@/store/task-store";
+import { useMutation } from "convex/react";
+import useUpdateTaskStatus from "@/hooks/use-update-task-status";
+import { api } from "../../convex/_generated/api";
+import type { Doc } from "../../convex/_generated/dataModel";
 
 type TaskCardProps = {
-  task: Task;
+  task: Doc<"tasks">;
+  isOverlay?: boolean;
 };
 
-function TaskCard({ task }: TaskCardProps) {
+function TaskCard({ task, isOverlay }: TaskCardProps) {
+  const updateStatus = useUpdateTaskStatus();
+  const removeTask = useMutation(api.tasks.remove);
+
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
+    id: task._id,
+    disabled: isOverlay,
+  });
+
   return (
-    <Card className="transition-shadow hover:shadow-md">
+    <Card
+      ref={isOverlay ? undefined : setNodeRef}
+      className={`transition-shadow hover:shadow-md ${isDragging ? "opacity-0" : ""} ${isOverlay ? "shadow-lg ring-2 ring-primary opacity-100" : ""}`}
+    >
       <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-2">
-        <CardTitle className="text-sm font-medium leading-snug">
+        <CardTitle
+          className="flex-1 cursor-grab text-sm font-medium leading-snug active:cursor-grabbing"
+          {...listeners}
+          {...attributes}
+        >
           {task.title}
         </CardTitle>
         <DropdownMenu>
@@ -29,26 +49,32 @@ function TaskCard({ task }: TaskCardProps) {
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
             {task.status !== "todo" && (
-              <DropdownMenuItem onClick={() => moveTask(task.id, "todo")}>
+              <DropdownMenuItem
+                onClick={() => updateStatus({ id: task._id, status: "todo" })}
+              >
                 Move to To Do
               </DropdownMenuItem>
             )}
             {task.status !== "in-progress" && (
               <DropdownMenuItem
-                onClick={() => moveTask(task.id, "in-progress")}
+                onClick={() =>
+                  updateStatus({ id: task._id, status: "in-progress" })
+                }
               >
                 Move to In Progress
               </DropdownMenuItem>
             )}
             {task.status !== "done" && (
-              <DropdownMenuItem onClick={() => moveTask(task.id, "done")}>
+              <DropdownMenuItem
+                onClick={() => updateStatus({ id: task._id, status: "done" })}
+              >
                 Move to Done
               </DropdownMenuItem>
             )}
             <DropdownMenuSeparator />
             <DropdownMenuItem
               className="text-destructive"
-              onClick={() => deleteTask(task.id)}
+              onClick={() => removeTask({ id: task._id })}
             >
               <Trash2 className="mr-2 h-4 w-4" />
               Delete
